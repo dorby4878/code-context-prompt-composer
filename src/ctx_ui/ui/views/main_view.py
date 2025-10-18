@@ -264,6 +264,7 @@ def main_page(state: AppState):
             prompt_parts.append("4. **Explain** your changes and reasoning")
             prompt_parts.append("5. **Consider** edge cases, error handling, and best practices")
             prompt_parts.append("6. **Do not** add .md files of logchange file unsless you asked specifically for it")
+            prompt_parts.append("7. **Do not** add docstrings or comments unless necessary for clarity or asked specifically for it")
             prompt_parts.append("\n---\n")
             prompt_parts.append("**Ready to assist!** Please provide the implementation with step-by-step explanations.")
             
