@@ -21,7 +21,7 @@ No more manually copying and pasting multiple files, no more losing track of whi
 - **Interactive File Browser**: Navigate your project structure with a collapsible tree view
 - **Smart File Selection**: Checkbox interface to select/deselect files easily
 - **Context Preview**: See exactly which files you've selected at a glance
-- **Prompt Generation**: Automatically formats your files into a structured prompt
+- **Dual Prompt Generation**: Choose between detailed Copilot prompts or focused ChatGPT prompts
 - **Copy to Clipboard**: One-click copy of the entire context
 - **Start Fresh**: Quick reset button to begin a new task
 - **Expandable Output**: Toggle between normal and expanded view for long prompts
@@ -139,16 +139,20 @@ observe ~/projects/my-awesome-app
    - Or ask questions: "How can I improve the error handling in these files?"
 
 3. **Generate Prompt**
-   - Click "✅ Generate Full Prompt"
+   - Choose between two prompt formats:
+     - **🤖 Generate Copilot Prompt**: Detailed prompt with step-by-step instructions for GitHub Copilot
+     - **💬 Generate ChatGPT Prompt**: Focused prompt for general code questions and suggestions
    - The tool validates you have files selected and a query entered
    - A formatted prompt appears in the output area with:
      - Your task description
      - All selected file contents with syntax highlighting markers
-     - Clear instructions for the AI assistant
+     - Appropriate instructions based on the chosen AI assistant
 
 4. **Copy & Use**
-   - Click "📋 Copy Full Prompt" to copy everything to your clipboard
-   - Paste into ChatGPT, Claude, or your AI assistant of choice
+   - Click the appropriate copy button for your chosen format:
+     - **📋 Copy Copilot Prompt** for GitHub Copilot
+     - **📋 Copy ChatGPT Prompt** for ChatGPT or Claude
+   - Paste into your AI assistant of choice
    - Get intelligent, context-aware responses!
 
 5. **Start Fresh**

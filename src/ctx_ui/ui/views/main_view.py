@@ -107,12 +107,17 @@ def main_page(state: AppState):
                     # Action buttons
                     with ui.row().classes('w-full gap-2 mb-2').style('flex-shrink: 0;'):
                         ui.button(
-                            '✅ Generate Full Prompt',
-                            on_click=lambda: generate_full_prompt(),
-                            icon='check_circle'
+                            '🤖 Generate Copilot Prompt',
+                            on_click=lambda: generate_copilot_prompt(),
+                            icon='smart_toy'
                         ).props('color=primary')
                         ui.button(
-                            '� Start Fresh',
+                            '💬 Generate ChatGPT Prompt',
+                            on_click=lambda: generate_chatgpt_prompt(),
+                            icon='chat'
+                        ).props('color=secondary')
+                        ui.button(
+                            '🔄 Start Fresh',
                             on_click=lambda: start_fresh(),
                             icon='refresh'
                         ).props('color=warning outline')
@@ -200,14 +205,43 @@ def main_page(state: AppState):
             
             ui.notify('✓ Cleared all - starting fresh!', type='info')
         
-        def generate_full_prompt():
-            """Generate the full detailed prompt for ChatGPT/Copilot."""
+        def _validate_inputs():
+            """Validate user inputs for prompt generation."""
             if not user_query.value.strip():
                 ui.notify('Please enter a query', type='warning')
-                return
+                return False
             
             if not selected_files:
                 ui.notify('Please select at least one file', type='warning')
+                return False
+                
+            return True
+        
+        def _get_file_contents():
+            """Get the contents of all selected files."""
+            file_contents_list = []
+            
+            for file_path in sorted(selected_files):
+                full_path = repo / file_path
+                if full_path.exists():
+                    try:
+                        content = full_path.read_text(errors='ignore')
+                        file_contents_list.append(f"\n### File: `{file_path}`\n")
+                        file_contents_list.append(f"```{full_path.suffix[1:] if full_path.suffix else ''}")
+                        file_contents_list.append(content)
+                        file_contents_list.append("```\n")
+                    except Exception as e:
+                        file_contents_list.append(f"\n### File: `{file_path}`")
+                        file_contents_list.append(f"_Error reading file: {e}_\n")
+                else:
+                    file_contents_list.append(f"\n### File: `{file_path}`")
+                    file_contents_list.append("_File not found_\n")
+            
+            return file_contents_list
+        
+        def generate_copilot_prompt():
+            """Generate the full detailed prompt for GitHub Copilot (same as the original functionality)."""
+            if not _validate_inputs():
                 return
             
             prompt_parts = []
@@ -220,21 +254,7 @@ def main_page(state: AppState):
             prompt_parts.append(f"The following {len(selected_files)} file(s) are relevant to this task:\n")
             
             # Add file contents
-            for file_path in sorted(selected_files):
-                full_path = repo / file_path
-                if full_path.exists():
-                    try:
-                        content = full_path.read_text(errors='ignore')
-                        prompt_parts.append(f"\n### File: `{file_path}`\n")
-                        prompt_parts.append(f"```{full_path.suffix[1:] if full_path.suffix else ''}")
-                        prompt_parts.append(content)
-                        prompt_parts.append("```\n")
-                    except Exception as e:
-                        prompt_parts.append(f"\n### File: `{file_path}`")
-                        prompt_parts.append(f"_Error reading file: {e}_\n")
-                else:
-                    prompt_parts.append(f"\n### File: `{file_path}`")
-                    prompt_parts.append("_File not found_\n")
+            prompt_parts.extend(_get_file_contents())
             
             prompt_parts.append("\n## Instructions\n")
             prompt_parts.append("Please analyze the provided code and implement the requested changes following these guidelines:\n")
@@ -255,15 +275,51 @@ def main_page(state: AppState):
             copy_container.clear()
             with copy_container:
                 ui.button(
-                    '📋 Copy Full Prompt',
-                    on_click=lambda: copy_full_prompt(),
+                    '📋 Copy Copilot Prompt',
+                    on_click=lambda: copy_prompt('Copilot'),
                     icon='content_copy'
                 ).props('color=primary')
             
-            ui.notify('✓ Full prompt generated! Copy and use with ChatGPT/Copilot', type='positive', timeout=5000)
+            ui.notify('✓ Copilot prompt generated! Copy and use with GitHub Copilot', type='positive', timeout=5000)
         
-        def copy_full_prompt():
-            """Copy the full prompt to clipboard."""
+        def generate_chatgpt_prompt():
+            """Generate a simpler prompt for ChatGPT focused on code questions/suggestions."""
+            if not _validate_inputs():
+                return
+            
+            prompt_parts = []
+            
+            # Main chat role
+            prompt_parts.append("You are a senior code assistant with expertise in software development and code architecture.\n")
+            
+            # User query
+            prompt_parts.append("## User Query")
+            prompt_parts.append(f"{user_query.value}\n")
+            
+            # Context files
+            prompt_parts.append("## Context Files\n")
+            prompt_parts.append(f"The following {len(selected_files)} file(s) provide context for this request:\n")
+            
+            # Add file contents
+            prompt_parts.extend(_get_file_contents())
+            
+            # Set output value
+            prompt_text = '\n'.join(prompt_parts)
+            output_area.value = prompt_text
+            
+            # Show copy button
+            copy_container.clear()
+            with copy_container:
+                ui.button(
+                    '📋 Copy ChatGPT Prompt',
+                    on_click=lambda: copy_prompt('ChatGPT'),
+                    icon='content_copy'
+                ).props('color=secondary')
+            
+            ui.notify('✓ ChatGPT prompt generated! Copy and use with ChatGPT', type='positive', timeout=5000)
+        
+        def copy_prompt(prompt_type: str):
+            """Copy the prompt to clipboard."""
             if not output_area.value:
                 ui.notify('No prompt to copy', type='warning')
                 return
@@ -271,4 +327,4 @@ def main_page(state: AppState):
             ui.run_javascript(f'''
                 navigator.clipboard.writeText({repr(output_area.value)});
             ''')
-            ui.notify('✓ Full prompt copied to clipboard', type='positive')
+            ui.notify(f'✓ {prompt_type} prompt copied to clipboard', type='positive')
