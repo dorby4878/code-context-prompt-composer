@@ -56,42 +56,74 @@ No more manually copying and pasting multiple files, no more losing track of whi
    - Install all required dependencies
    - Set up the project structure
 
-3. **Configure your project path** (optional)
-   
-   Edit `src/ctx_ui/config.py` to point to your target repository:
-   ```python
-   repo_root = Path("/path/to/your/project")
-   ```
-   
-   Or it will default to the current repository.
+3. **Use the `observe` Script (Recommended for Multiple Projects)**
 
-### Running the Application
+   The `observe` script allows you to quickly launch the tool for **any project** on your system, without needing to be in this repository.
 
-1. **Start the web interface**
-   ```bash
-   ./start.sh
-   ```
-   
-   Or manually:
-   ```bash
-   source venv/bin/activate
-   python -m src.ctx_ui.app
-   ```
+   a. **Make the script globally accessible**
+      
+      Add the scripts directory to your PATH by adding this to your `~/.zshrc` or `~/.bashrc`:
+      ```bash
+      export PATH="$PATH:/Users/yourusername/path/to/code-context-prompt-composer/scripts"
+      ```
+      
+      Or create a symlink in a directory already in your PATH:
+      ```bash
+      sudo ln -s /Users/yourusername/path/to/code-context-prompt-composer/scripts/observe /usr/local/bin/observe
+      ```
 
-2. **Open your browser**
-   
-   Navigate to: `http://localhost:8080`
+   b. **Reload your shell**
+      ```bash
+      source ~/.zshrc  # or source ~/.bashrc
+      ```
 
-3. **Start using the tool!**
-   - Browse your project files in the left panel
-   - Select files by checking the boxes
-   - Describe your task in the query field
-   - Click "Generate Full Prompt"
-   - Copy the generated prompt and paste into your AI assistant
+### Usage
+
+Navigate to any project and run:
+```bash
+cd ~/my_project
+observe .
+```
+
+Or specify a path directly:
+```bash
+observe ~/my_project
+```
+
+Or run from anywhere:
+```bash
+observe /path/to/any/project
+```
+
+The tool will open in your browser showing the file tree for that specific project! 🎯
+
+**How it works**:
+- The `observe` script activates the tool's virtual environment
+- Launches the app pointing to your target project directory
+- Opens the browser automatically at `http://localhost:8080`
+- You can now browse and select files from your target project
 
 ---
 
-## 📖 Usage Guide
+## � Quick Reference
+
+### Launch Commands
+
+```bash
+# From the tool's directory (analyzes this project)
+./start.sh
+
+# From any project directory (analyzes that project)
+cd ~/projects/my-awesome-app
+observe .
+
+# Or specify a path from anywhere
+observe ~/projects/my-awesome-app
+```
+
+---
+
+## �📖 Usage Guide
 
 ### Basic Workflow
 
@@ -129,175 +161,3 @@ No more manually copying and pasting multiple files, no more losing track of whi
 - **Be specific in your query**: Clear descriptions lead to better AI responses.
 - **Use the expand button**: Click the expand icon (⬍) next to "Output" for more space when viewing long prompts.
 - **Clear selections carefully**: Use "Clear All" next to the file count to deselect all files at once.
-
----
-
-## ⚙️ Configuration
-
-### File Filtering
-
-Edit `src/ctx_ui/config.py` to customize which files are indexed:
-
-```python
-index_include = [
-    "**/*.py",      # Python files
-    "**/*.js",      # JavaScript files
-    "**/*.ts",      # TypeScript files
-    "**/*.jsx",     # React files
-    "**/*.tsx",     # React TypeScript files
-    "**/*.vue",     # Vue files
-    "**/*.html",    # HTML files
-    "**/*.css",     # CSS files
-    "**/*.md",      # Markdown files
-]
-
-index_exclude = [
-    "**/node_modules/**",
-    "**/__pycache__/**",
-    "**/venv/**",
-    "**/.venv/**",
-    "**/dist/**",
-    "**/build/**",
-    "**/.git/**",
-]
-```
-
-### Port Configuration
-
-By default, the app runs on port `8080`. To change this, edit `src/ctx_ui/app.py`:
-
-```python
-ui.run(port=8080)  # Change to your preferred port
-```
-
----
-
-## 🏗️ Project Structure
-
-```
-ai_context_orchestrator/
-├── README.md                  # This file
-├── requirements.txt           # Python dependencies
-├── setup.sh                   # Setup script
-├── start.sh                   # Launch script
-├── src/
-│   └── ctx_ui/
-│       ├── app.py            # Main application entry point
-│       ├── config.py         # Configuration settings
-│       ├── context/
-│       │   └── indexer.py    # File indexing logic
-│       ├── models/
-│       │   ├── context_pack.py
-│       │   └── task_card.py
-│       ├── storage/
-│       │   └── store.py
-│       └── ui/
-│           └── views/
-│               └── main_view.py  # Main UI implementation
-└── tests/
-    ├── test_context_pack.py
-    └── test_indexer.py
-```
-
----
-
-## 🛠️ Development
-
-### Running Tests
-
-```bash
-source venv/bin/activate
-python -m pytest tests/
-```
-
-### Adding New Features
-
-The main UI logic is in `src/ctx_ui/ui/views/main_view.py`. Key components:
-
-- `build_file_tree()`: Builds the hierarchical file structure
-- `render_tree()`: Renders the interactive file tree
-- `generate_full_prompt()`: Creates the AI-ready prompt
-- `start_fresh()`: Resets the interface
-
-### Dependencies
-
-- **NiceGUI**: Modern Python UI framework (web-based)
-- **pathlib**: File path handling
-- Standard library modules for file operations
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how you can help:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## 🐛 Troubleshooting
-
-### Port Already in Use
-
-If port 8080 is already in use:
-```bash
-# Find and kill the process using port 8080
-lsof -ti:8080 | xargs kill -9
-```
-
-Or change the port in `src/ctx_ui/app.py`.
-
-### Virtual Environment Issues
-
-If you encounter issues with the virtual environment:
-```bash
-# Remove and recreate
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Files Not Showing Up
-
-Check your `index_include` and `index_exclude` patterns in `src/ctx_ui/config.py`. Make sure your file types are included and not accidentally excluded.
-
----
-
-## 💡 Use Cases
-
-- **Refactoring**: Select related files and describe the refactoring you want
-- **Bug Fixes**: Include the buggy files and describe the issue
-- **Feature Implementation**: Select relevant modules and describe the new feature
-- **Code Review**: Get AI analysis of specific files
-- **Documentation**: Generate documentation for selected code files
-- **Learning**: Ask questions about how specific parts of your codebase work
-
----
-
-## 📧 Support
-
-If you encounter issues or have questions:
-- Open an issue on GitHub
-- Check existing issues for solutions
-- Review the troubleshooting section above
-
----
-
-## 🙏 Acknowledgments
-
-Built with [NiceGUI](https://nicegui.io/) - a wonderful Python UI framework that makes building web interfaces a breeze!
-
----
-
-**Happy Coding! 🚀**
