@@ -41,8 +41,8 @@ No more manually copying and pasting multiple files, no more losing track of whi
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/ai_context_orchestrator.git
-   cd ai_context_orchestrator
+   git clone https://github.com/yourusername/code-context-prompt-composer.git
+   cd code-context-prompt-composer
    ```
 
 2. **Run the setup script**
