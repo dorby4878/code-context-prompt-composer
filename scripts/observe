@@ -6,12 +6,19 @@
 # Resolve target path (default = current dir)
 target_path="$(realpath "${1:-.}")"
 
-# Resolve orchestrator root (this script's parent)
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# --- FIX: properly resolve real script path even if symlinked ---
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  dir="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$dir/$SOURCE"
+done
+script_dir="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 project_root="$(dirname "$script_dir")"
+# ---------------------------------------------------------------
 
 # Activate orchestrator virtual env
 source "$project_root/.venv/bin/activate"
 
 # Run orchestrator app with target path
-python "$project_root/src/ctx_ui/app.py" -p "$target_path"
+python3 "$project_root/src/ctx_ui/app.py" -p "$target_path"
