@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# observe — run the Code Context & Prompt Composer on any project directory
+# Usage: observe [path]
+# Example: observe .   → observes current directory
+
+# Resolve target path (default = current dir)
+target_path="$(realpath "${1:-.}")"
+
+# Resolve orchestrator root (this script's parent)
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(dirname "$script_dir")"
+
+# Activate orchestrator virtual env
+source "$project_root/.venv/bin/activate"
+
+# Run orchestrator app with target path
+python "$project_root/src/ctx_ui/app.py" -p "$target_path"

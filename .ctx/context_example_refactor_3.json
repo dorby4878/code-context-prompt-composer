@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "task_id": "example-refactor-auth",
+  "snippets": [
+    {
+      "path": "src/ctx_ui/models/context_pack.py",
+      "start": 1,
+      "end": 9999,
+      "hash": "sha256:example123",
+      "why": "Example of a model file"
+    },
+    {
+      "path": "src/ctx_ui/config.py",
+      "start": 1,
+      "end": 9999,
+      "hash": "sha256:example456",
+      "why": "Configuration example"
+    },
+    {
+      "path": "README.md",
+      "start": 1,
+      "end": 9999,
+      "hash": "sha256:example789",
+      "why": "Documentation reference"
+    }
+  ]
+}

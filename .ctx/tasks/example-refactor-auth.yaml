@@ -1,0 +1,20 @@
+id: example-refactor-auth
+title: Refactor authentication module
+description: |
+  Split the monolithic auth.py into smaller, focused modules:
+  - auth/login.py for login logic
+  - auth/session.py for session management
+  - auth/validators.py for input validation
+  
+  Maintain backward compatibility with existing API.
+context_pack: context_example_refactor_3.json
+prompt_template: default
+created_at: '2025-10-18T10:00:00Z'
+updated_at: '2025-10-18T10:00:00Z'
+tags:
+  - refactoring
+  - auth
+  - architecture
+metadata:
+  priority: high
+  estimated_hours: 4

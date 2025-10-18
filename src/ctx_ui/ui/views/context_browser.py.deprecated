@@ -1,0 +1,153 @@
+"""Context Browser UI - Browse project files and create context packs."""
+
+from nicegui import ui
+from pathlib import Path
+from typing import List
+from ..layout import page_header, navigation_bar
+from ...context.indexer import list_repo_files
+from ...models.context_pack import ContextPack
+from ...config import AppState
+
+
+def context_browser_page(state: AppState):
+    """Create the context browser page."""
+    navigation_bar()
+    
+    with ui.column().classes('w-full p-4'):
+        page_header('📁 Context Browser', 'Browse and select files for context packs')
+        
+        repo = state.config.repo_root
+        files = list_repo_files(repo, state.config.index_include, state.config.index_exclude)
+        selected_files: List[str] = []
+        
+        with ui.row().classes('w-full gap-4').style('height: calc(100vh - 200px)'):
+            # Left panel: File tree
+            with ui.card().classes('w-1/4 overflow-y-auto'):
+                ui.label('📂 Project Files').classes('text-lg font-bold mb-2')
+                ui.label(f'{len(files)} files found').classes('text-sm text-gray-600 mb-4')
+                
+                file_list = ui.column().classes('w-full')
+                with file_list:
+                    for f in files:
+                        ui.button(
+                            str(f), 
+                            on_click=lambda path=f: open_file(path),
+                            icon='description'
+                        ).classes('w-full justify-start text-left').props('flat dense')
+            
+            # Center panel: Code viewer
+            with ui.card().classes('w-1/2 flex flex-col'):
+                ui.label('📄 Code Viewer').classes('text-lg font-bold mb-2')
+                current_file_label = ui.label('No file selected').classes('text-sm text-gray-600 mb-2')
+                code_box = ui.textarea().classes('flex-grow font-mono text-sm').props('readonly outlined')
+                add_button_container = ui.row().classes('mt-2')
+            
+            # Right panel: Selected context
+            with ui.card().classes('w-1/4 overflow-y-auto'):
+                ui.label('📌 Selected Context').classes('text-lg font-bold mb-2')
+                ui.label(f'{len(selected_files)} files selected').classes('text-sm text-gray-600 mb-2')
+                
+                selected_list = ui.column().classes('w-full mb-4')
+                
+                with ui.row().classes('w-full gap-2'):
+                    ui.button('Clear All', on_click=lambda: clear_selection(), icon='clear').props('outline color=negative')
+                
+                task_id_input = ui.input('Task ID (optional)').classes('w-full mb-2')
+                
+                ui.button(
+                    'Save as Context Pack',
+                    on_click=lambda: save_context(selected_files, task_id_input.value),
+                    icon='save'
+                ).props('color=primary').classes('w-full')
+        
+        def open_file(f: Path):
+            """Open and display a file."""
+            p = repo / f
+            try:
+                content = p.read_text(errors='ignore')
+                # Limit to first 10,000 chars for display
+                if len(content) > 10000:
+                    content = content[:10000] + f'\n\n... (truncated, {len(content)} total chars)'
+                code_box.value = content
+                current_file_label.text = str(f)
+                ui.notify(f'Opened {f}', type='info')
+                
+                # Update add button
+                add_button_container.clear()
+                with add_button_container:
+                    if str(f) not in selected_files:
+                        ui.button(
+                            f'➕ Add to Context',
+                            on_click=lambda: add_selection(str(f)),
+                            icon='add'
+                        ).props('color=positive')
+                    else:
+                        ui.label('✓ Already added').classes('text-green-600')
+            except Exception as e:
+                ui.notify(f'Error reading file: {e}', type='negative')
+        
+        def add_selection(f: str):
+            """Add file to selected context."""
+            if f not in selected_files:
+                selected_files.append(f)
+                update_selected_list()
+                ui.notify(f'Added {Path(f).name}', type='positive')
+                # Refresh the add button
+                if current_file_label.text == f:
+                    add_button_container.clear()
+                    with add_button_container:
+                        ui.label('✓ Already added').classes('text-green-600')
+        
+        def remove_selection(f: str):
+            """Remove file from selected context."""
+            if f in selected_files:
+                selected_files.remove(f)
+                update_selected_list()
+                ui.notify(f'Removed {Path(f).name}', type='info')
+                # Refresh the add button if this file is currently displayed
+                if current_file_label.text == f:
+                    add_button_container.clear()
+                    with add_button_container:
+                        ui.button(
+                            f'➕ Add to Context',
+                            on_click=lambda: add_selection(f),
+                            icon='add'
+                        ).props('color=positive')
+        
+        def clear_selection():
+            """Clear all selected files."""
+            selected_files.clear()
+            update_selected_list()
+            ui.notify('Cleared all selections', type='info')
+        
+        def update_selected_list():
+            """Update the selected files display."""
+            selected_list.clear()
+            with selected_list:
+                for s in selected_files:
+                    with ui.row().classes('w-full items-center gap-2'):
+                        ui.label(f'• {Path(s).name}').classes('text-sm flex-grow').style('word-break: break-all')
+                        ui.button(
+                            icon='close',
+                            on_click=lambda f=s: remove_selection(f)
+                        ).props('flat dense size=sm color=negative')
+        
+        def save_context(files: List[str], task_id: str):
+            """Save selected files as a context pack."""
+            if not files:
+                ui.notify('No files selected', type='warning')
+                return
+            
+            try:
+                pack = ContextPack.build_from_paths(repo, files)
+                if task_id:
+                    pack.task_id = task_id
+                
+                # Generate filename
+                filename = f'context_{task_id}_{len(files)}.json' if task_id else f'context_{len(files)}.json'
+                path = state.config.context_packs_dir / filename
+                pack.save(path)
+                
+                ui.notify(f'✓ Context Pack saved: {path.name}', type='positive', timeout=3000)
+            except Exception as e:
+                ui.notify(f'Error saving context pack: {e}', type='negative')

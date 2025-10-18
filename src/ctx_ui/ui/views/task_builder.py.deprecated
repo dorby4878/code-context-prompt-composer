@@ -1,0 +1,173 @@
+"""Task Builder UI - Create and manage task cards."""
+
+from nicegui import ui
+from pathlib import Path
+from datetime import datetime
+from ..layout import page_header, navigation_bar
+from ...models.task_card import TaskCard
+from ...config import AppState
+
+
+def task_builder_page(state: AppState):
+    """Create the task builder page."""
+    navigation_bar()
+    
+    with ui.column().classes('w-full p-4'):
+        page_header('📝 Task Builder', 'Create and manage AI task cards')
+        
+        tasks_dir = state.config.tasks_dir
+        context_packs_dir = state.config.context_packs_dir
+        
+        # Get available context packs
+        context_packs = list(context_packs_dir.glob('context_*.json'))
+        context_pack_names = ['None'] + [p.name for p in context_packs]
+        
+        # Get existing tasks
+        existing_tasks = list(tasks_dir.glob('*.yaml'))
+        
+        with ui.row().classes('w-full gap-4').style('height: calc(100vh - 200px)'):
+            # Left panel: Existing tasks
+            with ui.card().classes('w-1/4 overflow-y-auto'):
+                ui.label('📋 Existing Tasks').classes('text-lg font-bold mb-2')
+                ui.label(f'{len(existing_tasks)} tasks').classes('text-sm text-gray-600 mb-4')
+                
+                ui.button('+ New Task', on_click=lambda: new_task(), icon='add').props('color=primary').classes('w-full mb-4')
+                
+                task_list = ui.column().classes('w-full')
+                with task_list:
+                    for task_file in existing_tasks:
+                        ui.button(
+                            task_file.stem,
+                            on_click=lambda tf=task_file: load_task(tf),
+                            icon='description'
+                        ).classes('w-full justify-start text-left').props('flat dense')
+            
+            # Center panel: Task editor
+            with ui.card().classes('w-1/2 flex flex-col overflow-y-auto'):
+                ui.label('✏️ Task Editor').classes('text-lg font-bold mb-4')
+                
+                task_id_input = ui.input('Task ID').classes('w-full mb-2').props('outlined')
+                task_title_input = ui.input('Title').classes('w-full mb-2').props('outlined')
+                task_description = ui.textarea('Description').classes('w-full mb-2').props('outlined').style('min-height: 150px')
+                
+                with ui.row().classes('w-full gap-2 mb-2'):
+                    context_pack_select = ui.select(
+                        context_pack_names,
+                        label='Context Pack',
+                        value='None'
+                    ).classes('flex-grow').props('outlined')
+                    
+                    prompt_template_input = ui.input('Prompt Template', value='default').classes('flex-grow').props('outlined')
+                
+                tags_input = ui.input('Tags (comma-separated)').classes('w-full mb-2').props('outlined')
+                
+                with ui.row().classes('w-full gap-2 mt-4'):
+                    ui.button('Save Task', on_click=lambda: save_task(), icon='save').props('color=primary')
+                    ui.button('Clear', on_click=lambda: clear_form(), icon='clear').props('outline')
+            
+            # Right panel: Preview
+            with ui.card().classes('w-1/4 overflow-y-auto'):
+                ui.label('👁️ Preview').classes('text-lg font-bold mb-2')
+                preview_box = ui.markdown('_No task loaded_').classes('w-full')
+        
+        def new_task():
+            """Create a new task."""
+            task_id_input.value = f'task_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+            task_title_input.value = ''
+            task_description.value = ''
+            context_pack_select.value = 'None'
+            prompt_template_input.value = 'default'
+            tags_input.value = ''
+            update_preview()
+            ui.notify('New task created', type='info')
+        
+        def load_task(task_file: Path):
+            """Load an existing task."""
+            try:
+                task = TaskCard.load(task_file)
+                task_id_input.value = task.id
+                task_title_input.value = task.title
+                task_description.value = task.description
+                context_pack_select.value = task.context_pack or 'None'
+                prompt_template_input.value = task.prompt_template
+                tags_input.value = ', '.join(task.tags)
+                update_preview()
+                ui.notify(f'Loaded task: {task.title}', type='positive')
+            except Exception as e:
+                ui.notify(f'Error loading task: {e}', type='negative')
+        
+        def save_task():
+            """Save the current task."""
+            if not task_id_input.value:
+                ui.notify('Task ID is required', type='warning')
+                return
+            
+            if not task_title_input.value:
+                ui.notify('Title is required', type='warning')
+                return
+            
+            try:
+                tags = [t.strip() for t in tags_input.value.split(',') if t.strip()]
+                
+                task = TaskCard(
+                    id=task_id_input.value,
+                    title=task_title_input.value,
+                    description=task_description.value,
+                    context_pack=None if context_pack_select.value == 'None' else context_pack_select.value,
+                    prompt_template=prompt_template_input.value,
+                    tags=tags
+                )
+                
+                path = tasks_dir / f'{task.id}.yaml'
+                task.save(path)
+                
+                ui.notify(f'✓ Task saved: {path.name}', type='positive', timeout=3000)
+                
+                # Refresh task list
+                task_list.clear()
+                existing_tasks = list(tasks_dir.glob('*.yaml'))
+                with task_list:
+                    for task_file in existing_tasks:
+                        ui.button(
+                            task_file.stem,
+                            on_click=lambda tf=task_file: load_task(tf),
+                            icon='description'
+                        ).classes('w-full justify-start text-left').props('flat dense')
+                
+            except Exception as e:
+                ui.notify(f'Error saving task: {e}', type='negative')
+        
+        def clear_form():
+            """Clear the form."""
+            task_id_input.value = ''
+            task_title_input.value = ''
+            task_description.value = ''
+            context_pack_select.value = 'None'
+            prompt_template_input.value = 'default'
+            tags_input.value = ''
+            update_preview()
+        
+        def update_preview():
+            """Update the preview panel."""
+            preview_content = f"""## {task_title_input.value or '_Untitled_'}
+
+**ID:** `{task_id_input.value or 'N/A'}`
+
+**Description:**
+{task_description.value or '_No description_'}
+
+**Context Pack:** `{context_pack_select.value}`
+
+**Prompt Template:** `{prompt_template_input.value}`
+
+**Tags:** {tags_input.value or '_None_'}
+"""
+            preview_box.content = preview_content
+        
+        # Connect inputs to preview
+        task_id_input.on_value_change(lambda: update_preview())
+        task_title_input.on_value_change(lambda: update_preview())
+        task_description.on_value_change(lambda: update_preview())
+        context_pack_select.on_value_change(lambda: update_preview())
+        prompt_template_input.on_value_change(lambda: update_preview())
+        tags_input.on_value_change(lambda: update_preview())

@@ -1,0 +1,124 @@
+"""Prompt Composer UI - Render AI instruction text from templates."""
+
+from nicegui import ui
+from pathlib import Path
+from ..layout import page_header, navigation_bar
+from ...models.task_card import TaskCard
+from ...models.context_pack import ContextPack
+from ...config import AppState
+
+
+def prompt_composer_page(state: AppState):
+    """Create the prompt composer page."""
+    navigation_bar()
+    
+    with ui.column().classes('w-full p-4'):
+        page_header('🎯 Prompt Composer', 'Render AI instructions from task cards')
+        
+        tasks_dir = state.config.tasks_dir
+        existing_tasks = list(tasks_dir.glob('*.yaml'))
+        task_names = ['Select a task...'] + [t.stem for t in existing_tasks]
+        
+        with ui.row().classes('w-full gap-4').style('height: calc(100vh - 200px)'):
+            # Left panel: Task selector and config
+            with ui.card().classes('w-1/3 overflow-y-auto'):
+                ui.label('📋 Task Selection').classes('text-lg font-bold mb-4')
+                
+                task_select = ui.select(
+                    task_names,
+                    label='Select Task',
+                    value=task_names[0]
+                ).classes('w-full mb-4').props('outlined')
+                
+                ui.separator()
+                
+                ui.label('Task Details').classes('text-md font-bold mt-4 mb-2')
+                task_info = ui.markdown('_No task selected_').classes('w-full')
+            
+            # Right panel: Rendered prompt
+            with ui.card().classes('w-2/3 flex flex-col'):
+                ui.label('📝 Rendered Prompt').classes('text-lg font-bold mb-2')
+                
+                with ui.row().classes('w-full gap-2 mb-2'):
+                    ui.button('Generate Prompt', on_click=lambda: generate_prompt(), icon='play_arrow').props('color=primary')
+                    ui.button('Copy to Clipboard', on_click=lambda: copy_prompt(), icon='content_copy').props('outline')
+                
+                prompt_output = ui.textarea().classes('flex-grow font-mono text-sm').props('readonly outlined')
+        
+        def generate_prompt():
+            """Generate the prompt from selected task."""
+            if task_select.value == 'Select a task...':
+                ui.notify('Please select a task', type='warning')
+                return
+            
+            try:
+                task_file = tasks_dir / f'{task_select.value}.yaml'
+                task = TaskCard.load(task_file)
+                
+                # Update task info
+                task_info.content = f"""**Title:** {task.title}
+
+**Description:** {task.description}
+
+**Context Pack:** `{task.context_pack or 'None'}`
+
+**Tags:** {', '.join(task.tags) if task.tags else '_None_'}
+"""
+                
+                # Build prompt
+                prompt_parts = []
+                prompt_parts.append(f"# Task: {task.title}\n")
+                
+                if task.description:
+                    prompt_parts.append(f"## Description\n{task.description}\n")
+                
+                # Load context pack if available
+                if task.context_pack:
+                    context_file = state.config.context_packs_dir / task.context_pack
+                    if context_file.exists():
+                        try:
+                            context_pack = ContextPack.load(context_file)
+                            prompt_parts.append(f"## Context Files ({len(context_pack.snippets)} files)\n")
+                            for snippet in context_pack.snippets:
+                                prompt_parts.append(f"- `{snippet.path}`")
+                                if snippet.why:
+                                    prompt_parts.append(f"  - {snippet.why}")
+                            prompt_parts.append("")
+                            
+                            # Add file contents
+                            prompt_parts.append("## File Contents\n")
+                            for snippet in context_pack.snippets:
+                                file_path = state.config.repo_root / snippet.path
+                                if file_path.exists():
+                                    try:
+                                        content = file_path.read_text(errors='ignore')
+                                        prompt_parts.append(f"### File: {snippet.path}\n")
+                                        prompt_parts.append(f"```\n{content}\n```\n")
+                                    except Exception as e:
+                                        prompt_parts.append(f"### File: {snippet.path}\n_Error reading file: {e}_\n")
+                        except Exception as e:
+                            prompt_parts.append(f"\n_Error loading context pack: {e}_\n")
+                
+                # Add template footer
+                prompt_parts.append("\n---")
+                prompt_parts.append(f"\nTemplate: {task.prompt_template}")
+                
+                prompt_output.value = '\n'.join(prompt_parts)
+                ui.notify('✓ Prompt generated', type='positive')
+                
+            except Exception as e:
+                ui.notify(f'Error generating prompt: {e}', type='negative')
+        
+        def copy_prompt():
+            """Copy prompt to clipboard."""
+            if not prompt_output.value:
+                ui.notify('No prompt to copy', type='warning')
+                return
+            
+            ui.run_javascript(f'''
+                navigator.clipboard.writeText({repr(prompt_output.value)});
+            ''')
+            ui.notify('✓ Copied to clipboard', type='positive')
+        
+        # Auto-generate when task is selected
+        task_select.on_value_change(lambda: generate_prompt() if task_select.value != 'Select a task...' else None)
