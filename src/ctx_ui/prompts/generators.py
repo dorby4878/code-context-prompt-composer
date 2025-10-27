@@ -74,34 +74,148 @@ def generate_chatgpt_prompt_text(user_query: str, selected_files: Set[str], repo
     Returns:
         Formatted prompt string for ChatGPT with file contents
     """
+    import re
+    
+    # Denylist for binary/noisy assets (case-insensitive)
+    NOISE_SUFFIXES = {
+        '.lock', '.min.js', '.min.css', '.map',
+        '.png', '.jpg', '.jpeg', '.gif', '.webp',
+        '.pdf', '.zip', '.tar', '.gz', '.tgz', '.xz',
+        '.mp4', '.mov', '.avi'
+    }
+    
+    # Size/line limits for truncation
+    MAX_FILE_KB = 50
+    MAX_FILE_LINES = 800
+    HEAD_LINES = 400
+    TAIL_LINES = 100
+    
+    def _is_noisy_asset(file_path: str) -> bool:
+        """Check if file should be skipped due to binary/noisy suffix."""
+        return any(file_path.lower().endswith(suffix) for suffix in NOISE_SUFFIXES)
+    
+    def _redact_secrets(content: str) -> str:
+        """Redact likely secrets from content (conservative approach).
+        
+        Assumptions:
+        - Uses conservative regexes to avoid false positives
+        - Better to slightly over-redact than to leak secrets
+        """
+        lines = content.split('\n')
+        redacted_lines = []
+        in_pem_block = False
+        
+        for line in lines:
+            # PEM block detection
+            if '-----BEGIN' in line:
+                in_pem_block = True
+                redacted_lines.append('[REDACTED]')
+                continue
+            if '-----END' in line:
+                in_pem_block = False
+                redacted_lines.append('[REDACTED]')
+                continue
+            if in_pem_block:
+                redacted_lines.append('[REDACTED]')
+                continue
+            
+            # Key=value secrets (API_KEY, SECRET, TOKEN)
+            if re.search(r'(API_KEY|SECRET|TOKEN)\s*=', line, re.IGNORECASE):
+                redacted_lines.append('[REDACTED]')
+                continue
+            
+            # JWT-like tokens (three base64url segments separated by dots)
+            if re.match(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$', line.strip()):
+                redacted_lines.append('[REDACTED]')
+                continue
+            
+            redacted_lines.append(line)
+        
+        return '\n'.join(redacted_lines)
+    
+    def _truncate_large_content(content: str, line_count: int) -> tuple[str, bool]:
+        """Truncate content if it exceeds size limits.
+        
+        Assumptions:
+        - If both size and line limits are exceeded, truncation applies once (head+tail)
+        
+        Returns:
+            (content, was_truncated)
+        """
+        if line_count <= MAX_FILE_LINES:
+            return content, False
+        
+        lines = content.split('\n')
+        head = lines[:HEAD_LINES]
+        tail = lines[-TAIL_LINES:]
+        truncated = '\n'.join(head) + '\n--- TRUNCATED MIDDLE ---\n' + '\n'.join(tail)
+        return truncated, True
+    
     prompt_parts = []
     
-    # Main chat role
-    prompt_parts.append("You are a senior code assistant with expertise in software development and code architecture.\n")
+    # Role with clarified scope
+    prompt_parts.append("You are a Senior Software Architecture Consultant. Focus on design guidance, options, and trade-offs. Do not write full implementations unless explicitly requested.\n")
     
     # User query
     prompt_parts.append("## User Query")
     prompt_parts.append(f"{user_query}\n")
     
-    # Context files
+    # Deterministic response contract (after role and query)
+    prompt_parts.append("## What I need from you\n")
+    prompt_parts.append("1. **Understanding & Assumptions** (brief)")
+    prompt_parts.append("2. **Options & Trade-offs** (2–3)")
+    prompt_parts.append("3. **Recommendation** (pick one and justify)")
+    prompt_parts.append("4. **High-Level Plan** (3–7 steps)")
+    prompt_parts.append("5. **Risks/Edge Cases** (include only if relevant)")
+    prompt_parts.append("6. **Quick Checks** (how to validate the design)\n")
+    
+    # Context files with primary subsection
     prompt_parts.append("## Context Files\n")
     prompt_parts.append(f"The following {len(selected_files)} file(s) provide context for this request:\n")
+    prompt_parts.append("### Primary files to consider\n")
     
-    # Add file contents
+    # Add file contents with metadata, truncation, and redaction
     for file_path in sorted(selected_files):
         full_path = repo_root / file_path
-        if full_path.exists():
-            try:
-                content = full_path.read_text(errors='ignore')
-                prompt_parts.append(f"\n### File: `{file_path}`\n")
-                prompt_parts.append(f"```{full_path.suffix[1:] if full_path.suffix else ''}")
-                prompt_parts.append(content)
-                prompt_parts.append("```\n")
-            except Exception as e:
-                prompt_parts.append(f"\n### File: `{file_path}`")
-                prompt_parts.append(f"_Error reading file: {e}_\n")
-        else:
+        
+        # Check if noisy asset
+        if _is_noisy_asset(file_path):
+            prompt_parts.append(f"- `{file_path}` — _Skipped embedding (binary/noisy asset)_\n")
+            continue
+        
+        if not full_path.exists():
             prompt_parts.append(f"\n### File: `{file_path}`")
             prompt_parts.append("_File not found_\n")
+            continue
+        
+        try:
+            # Read file and get metadata
+            content = full_path.read_text(errors='ignore')
+            size_bytes = len(content.encode('utf-8'))
+            size_kb = size_bytes / 1024.0
+            lines = content.split('\n')
+            line_count = len(lines)
+            
+            # Apply secret redaction
+            content = _redact_secrets(content)
+            
+            # Apply size-based truncation
+            was_truncated = False
+            if size_kb > MAX_FILE_KB or line_count > MAX_FILE_LINES:
+                content, was_truncated = _truncate_large_content(content, line_count)
+            
+            # File header with metadata
+            header = f"### File: `{file_path}` ({line_count} lines, {size_kb:.1f} KB)"
+            if was_truncated:
+                header += f" — TRUNCATED to first {HEAD_LINES} and last {TAIL_LINES} lines"
+            
+            prompt_parts.append(f"\n{header}\n")
+            prompt_parts.append(f"```{full_path.suffix[1:] if full_path.suffix else ''}")
+            prompt_parts.append(content)
+            prompt_parts.append("```\n")
+            
+        except Exception as e:
+            prompt_parts.append(f"\n### File: `{file_path}`")
+            prompt_parts.append(f"_Error reading file: {e}_\n")
     
     return '\n'.join(prompt_parts)
