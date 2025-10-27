@@ -240,7 +240,7 @@ def main_page(state: AppState):
             return file_contents_list
         
         def generate_copilot_prompt():
-            """Generate the full detailed prompt for GitHub Copilot (same as the original functionality)."""
+            """Generate the full detailed prompt for GitHub Copilot with file list only (no contents)."""
             if not _validate_inputs():
                 return
             
@@ -253,8 +253,9 @@ def main_page(state: AppState):
             prompt_parts.append("## Context Files\n")
             prompt_parts.append(f"The following {len(selected_files)} file(s) are relevant to this task:\n")
             
-            # Add file contents
-            prompt_parts.extend(_get_file_contents())
+            # Add file names only (no contents)
+            for file_path in sorted(selected_files):
+                prompt_parts.append(f"- `{file_path}`")
             
             prompt_parts.append("\n## Instructions\n")
             prompt_parts.append("Please analyze the provided code and implement the requested changes following these guidelines:\n")
