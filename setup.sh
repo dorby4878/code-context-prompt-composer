@@ -25,20 +25,6 @@ pip install --upgrade pip
 echo "📥 Installing dependencies..."
 pip install -r requirements.txt
 
-# Create necessary directories
-echo "📁 Creating directories..."
-mkdir -p .ctx/tasks
-mkdir -p .ctx/templates
-
-# Initialize database
-echo "💾 Initializing database..."
-python3 -c "
-from pathlib import Path
-from src.ctx_ui.storage.store import MetadataStore
-db = MetadataStore(Path('.ctx/metadata.db'))
-print('✓ Database initialized')
-"
-
 echo ""
 echo "✅ Setup complete!"
 echo ""

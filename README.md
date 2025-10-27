@@ -102,6 +102,7 @@ The tool will open in your browser showing the file tree for that specific proje
 - Launches the app pointing to your target project directory
 - Opens the browser automatically at `http://localhost:8080`
 - You can now browse and select files from your target project
+- **No files are created in your project** - the tool is read-only
 
 ---
 

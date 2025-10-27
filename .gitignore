@@ -22,9 +22,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Context files
-.ctx/metadata.db
-.ctx/metadata.db-journal
+# NiceGUI storage
 .nicegui/
 
 # IDE

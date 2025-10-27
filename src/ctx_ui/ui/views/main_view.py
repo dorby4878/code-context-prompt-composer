@@ -4,7 +4,6 @@ from nicegui import ui
 from pathlib import Path
 from typing import List, Dict, Set
 from ...context.indexer import list_repo_files
-from ...models.context_pack import ContextPack
 from ...config import AppState
 
 
