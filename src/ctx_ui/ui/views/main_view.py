@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Set
 from ...context.indexer import list_repo_files
 from ...config import AppState
+from ...prompts.generators import generate_copilot_prompt_text, generate_chatgpt_prompt_text
 
 
 def build_file_tree(files: List[Path]) -> Dict:
@@ -38,8 +39,7 @@ def main_page(state: AppState):
         ui.label('🧠 Code Context & Prompt Composer').classes('text-xl font-bold')
     
     with ui.column().classes('w-full p-4'):
-        ui.label('Context File Picker + Prompt Composer').classes('text-2xl font-bold mb-4')
-        
+
         repo = state.config.repo_root
         files = list_repo_files(repo, state.config.index_include, state.config.index_exclude)
         file_tree = build_file_tree(files)
@@ -216,60 +216,13 @@ def main_page(state: AppState):
                 
             return True
         
-        def _get_file_contents():
-            """Get the contents of all selected files."""
-            file_contents_list = []
-            
-            for file_path in sorted(selected_files):
-                full_path = repo / file_path
-                if full_path.exists():
-                    try:
-                        content = full_path.read_text(errors='ignore')
-                        file_contents_list.append(f"\n### File: `{file_path}`\n")
-                        file_contents_list.append(f"```{full_path.suffix[1:] if full_path.suffix else ''}")
-                        file_contents_list.append(content)
-                        file_contents_list.append("```\n")
-                    except Exception as e:
-                        file_contents_list.append(f"\n### File: `{file_path}`")
-                        file_contents_list.append(f"_Error reading file: {e}_\n")
-                else:
-                    file_contents_list.append(f"\n### File: `{file_path}`")
-                    file_contents_list.append("_File not found_\n")
-            
-            return file_contents_list
-        
         def generate_copilot_prompt():
-            """Generate the full detailed prompt for GitHub Copilot with file list only (no contents)."""
+            """Generate structured prompt for GitHub Copilot following strict rules."""
             if not _validate_inputs():
                 return
             
-            prompt_parts = []
-            
-            prompt_parts.append("# AI Coding Assistant Prompt\n")
-            prompt_parts.append("## Task Description")
-            prompt_parts.append(f"{user_query.value}\n")
-            
-            prompt_parts.append("## Context Files\n")
-            prompt_parts.append(f"The following {len(selected_files)} file(s) are relevant to this task:\n")
-            
-            # Add file names only (no contents)
-            for file_path in sorted(selected_files):
-                prompt_parts.append(f"- `{file_path}`")
-            
-            prompt_parts.append("\n## Instructions\n")
-            prompt_parts.append("Please analyze the provided code and implement the requested changes following these guidelines:\n")
-            prompt_parts.append("1. **Understand** the current implementation in the provided files")
-            prompt_parts.append("2. **Plan** the changes needed to fulfill the request")
-            prompt_parts.append("3. **Implement** the changes with clear, maintainable code")
-            prompt_parts.append("4. **Explain** your changes and reasoning")
-            prompt_parts.append("5. **Consider** edge cases, error handling, and best practices")
-            prompt_parts.append("6. **Do not** add .md files of logchange file unsless you asked specifically for it")
-            prompt_parts.append("7. **Do not** add docstrings or comments unless necessary for clarity or asked specifically for it")
-            prompt_parts.append("\n---\n")
-            prompt_parts.append("**Ready to assist!** Please provide the implementation with step-by-step explanations.")
-            
-            # Set output value
-            prompt_text = '\n'.join(prompt_parts)
+            # Generate prompt using the dedicated generator
+            prompt_text = generate_copilot_prompt_text(user_query.value, selected_files)
             output_area.value = prompt_text
             
             # Show copy button
@@ -288,24 +241,8 @@ def main_page(state: AppState):
             if not _validate_inputs():
                 return
             
-            prompt_parts = []
-            
-            # Main chat role
-            prompt_parts.append("You are a senior code assistant with expertise in software development and code architecture.\n")
-            
-            # User query
-            prompt_parts.append("## User Query")
-            prompt_parts.append(f"{user_query.value}\n")
-            
-            # Context files
-            prompt_parts.append("## Context Files\n")
-            prompt_parts.append(f"The following {len(selected_files)} file(s) provide context for this request:\n")
-            
-            # Add file contents
-            prompt_parts.extend(_get_file_contents())
-            
-            # Set output value
-            prompt_text = '\n'.join(prompt_parts)
+            # Generate prompt using the dedicated generator
+            prompt_text = generate_chatgpt_prompt_text(user_query.value, selected_files, repo)
             output_area.value = prompt_text
             
             # Show copy button

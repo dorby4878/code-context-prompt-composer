@@ -141,13 +141,10 @@ observe ~/projects/my-awesome-app
 
 3. **Generate Prompt**
    - Choose between two prompt formats:
-     - **🤖 Generate Copilot Prompt**: Detailed prompt with step-by-step instructions for GitHub Copilot
-     - **💬 Generate ChatGPT Prompt**: Focused prompt for general code questions and suggestions
+     - **🤖 Generate Copilot Prompt**: Structured prompt with strict rules for minimal, surgical changes (Role, Task, Context, Plan, Edits, Rationale, Constraints)
+     - **💬 Generate ChatGPT Prompt**: Focused prompt for general code questions and suggestions with full file contents
    - The tool validates you have files selected and a query entered
-   - A formatted prompt appears in the output area with:
-     - Your task description
-     - All selected file contents with syntax highlighting markers
-     - Appropriate instructions based on the chosen AI assistant
+   - A formatted prompt appears in the output area optimized for the chosen AI assistant
 
 4. **Copy & Use**
    - Click the appropriate copy button for your chosen format:
