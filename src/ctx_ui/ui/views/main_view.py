@@ -1,11 +1,12 @@
 """Main View - Simplified Context File Picker + Prompt Query."""
 
-from nicegui import ui
+from nicegui import ui, app
 from pathlib import Path
 from typing import List, Dict, Set
 from ...context.indexer import list_repo_files
 from ...config import AppState
 from ...prompts.generators import generate_copilot_prompt_text, generate_chatgpt_prompt_text
+import asyncio
 
 
 def build_file_tree(files: List[Path]) -> Dict:
@@ -34,26 +35,103 @@ def build_file_tree(files: List[Path]) -> Dict:
 def main_page(state: AppState):
     """Create the main simplified page."""
     
+    # Initialize file changes tracking
+    if not hasattr(app.storage.general, 'file_changes'):
+        app.storage.general['file_changes'] = []
+    
+    last_change_count = {'value': len(app.storage.general.get('file_changes', []))}
+    
     # Simple header without navigation
     with ui.header().classes('items-center justify-between'):
         ui.label('🧠 Code Context & Prompt Composer').classes('text-xl font-bold')
+        
+        # Live monitoring indicator
+        with ui.row().classes('items-center gap-2'):
+            status_icon = ui.icon('sensors', size='sm').classes('text-green-500')
+            status_label = ui.label('Live monitoring active').classes('text-sm text-gray-300')
+            refresh_button = ui.button(
+                icon='refresh',
+                on_click=lambda: force_refresh()
+            ).props('flat dense color=white').tooltip('Refresh file tree now')
     
     with ui.column().classes('w-full p-4'):
 
         repo = state.config.repo_root
-        files = list_repo_files(repo, state.config.index_include, state.config.index_exclude)
-        file_tree = build_file_tree(files)
         
+        # State variables
         selected_files: Set[str] = set()
         file_checkboxes: Dict[str, ui.checkbox] = {}
         output_expanded = {'value': False}  # Track expansion state
+        
+        # File tree state
+        files = list_repo_files(repo, state.config.index_include, state.config.index_exclude)
+        file_tree = build_file_tree(files)
+        file_count_label = None
+        tree_container = None
+        
+        def rebuild_file_tree():
+            """Rebuild the file tree from scratch."""
+            nonlocal files, file_tree, tree_container, file_count_label
+            
+            # Re-scan files
+            files = list_repo_files(repo, state.config.index_include, state.config.index_exclude)
+            file_tree = build_file_tree(files)
+            
+            # Update count label
+            if file_count_label:
+                file_count_label.text = f'{len(files)} files found'
+            
+            # Rebuild tree
+            if tree_container:
+                tree_container.clear()
+                with tree_container:
+                    render_tree(file_tree)
+            
+            # Preserve selections but remove deleted files
+            deleted_files = [f for f in selected_files if f not in {str(p) for p in files}]
+            for deleted in deleted_files:
+                selected_files.discard(deleted)
+                if deleted in file_checkboxes:
+                    del file_checkboxes[deleted]
+            
+            update_selected_count()
+        
+        def force_refresh():
+            """Force immediate refresh of file tree."""
+            rebuild_file_tree()
+            ui.notify('🔄 File tree refreshed', type='info')
+        
+        async def check_for_changes():
+            """Periodically check for file system changes and refresh if needed."""
+            while True:
+                await asyncio.sleep(2)  # Check every 2 seconds
+                
+                current_count = len(app.storage.general.get('file_changes', []))
+                if current_count > last_change_count['value']:
+                    # Changes detected - refresh the tree
+                    last_change_count['value'] = current_count
+                    rebuild_file_tree()
+                    
+                    # Show notification
+                    changes = app.storage.general.get('file_changes', [])
+                    if changes:
+                        latest = changes[-1]
+                        ui.notify(
+                            f'📁 File {latest["type"]}: {latest["path"]}',
+                            type='info',
+                            position='top-right',
+                            timeout=3000
+                        )
+        
+        # Start background change monitoring
+        ui.timer(2.0, check_for_changes, once=False)
         
         # Main layout: Left (file browser) + Right (prompt area + output)
         with ui.splitter(value=25).classes('w-full').style('height: calc(100vh - 180px)') as splitter:
             with splitter.before:
                 with ui.card().classes('w-full h-full overflow-y-auto p-4'):
                     ui.label('📂 Project Files').classes('text-lg font-bold mb-2')
-                    ui.label(f'{len(files)} files found').classes('text-sm text-gray-600 mb-4')
+                    file_count_label = ui.label(f'{len(files)} files found').classes('text-sm text-gray-600 mb-4')
                     
                     # File tree with checkboxes
                     tree_container = ui.column().classes('w-full')
